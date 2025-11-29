@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  UNLIMITED
+}
+
+model User {
+  id                          String        @id @default(cuid())
+  email                       String        @unique
+  password                    String?       // null for OAuth users
+  name                        String?
+  createdAt                   DateTime      @default(now())
+  
+  // Subscription
+  plan                        Plan          @default(FREE)
+  stripeCustomerId            String?       @unique
+  stripeSubscriptionId        String?       @unique
+  subscriptionEndDate         DateTime?
+  
+  // Usage tracking
+  optimizationsUsedThisMonth  Int           @default(0)
+  lastResetDate               DateTime      @default(now())
+  
+  // Relations
+  masterCVs                   MasterCV[]
+  optimizations               Optimization[]
+}
+
+model MasterCV {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String          // e.g., "Software Engineer CV"
+  fileUrl       String          // Blob storage URL
+  parsedData    Json            // Structured CV data
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  optimizations Optimization[]
+}
+
+model Optimization {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  masterCVId        String
+  masterCV          MasterCV    @relation(fields: [masterCVId], references: [id], onDelete: Cascade)
+  
+  // Input
+  jobDescription    String      @db.Text
+  jobUrl            String?
+  companyName       String?
+  roleTitle         String?
+  
+  // Output
+  optimizedCV       Json        // Optimized CV structure
+  coverLetters      Json?       // 3 cover letter variants (PRO/UNLIMITED only)
+  
+  // Analysis
+  atsScoreBefore    Int         // 0-100
+  atsScoreAfter     Int         // 0-100
+  improvementsMade  Json        // Array of improvement descriptions
+  keywordsAdded     Json        // Array of keywords that were added
+  
+  createdAt         DateTime    @default(now())
+}
